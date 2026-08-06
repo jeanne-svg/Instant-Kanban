@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>領料即時看板</title>
+<style>
+body{font-family:"Microsoft JhengHei",Arial,sans-serif;margin:0;background:#f3f5f7;color:#222}
+header{background:#1f2937;color:white;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:24px}.sub{font-size:13px;color:#d1d5db}
+.wrap{padding:20px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+.card{background:white;border-radius:10px;padding:16px;box-shadow:0 2px 8px #0001}.num{font-size:28px;font-weight:bold;margin-top:6px}
+.controls{background:white;padding:14px;border-radius:10px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap}
+input,select,button{padding:9px 11px;border:1px solid #ccd2d8;border-radius:7px;background:white}
+button{cursor:pointer;background:#2563eb;color:white;border:0}
+table{width:100%;border-collapse:collapse;background:white;border-radius:10px;overflow:hidden}
+th,td{padding:11px 9px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px}
+th{background:#e5e7eb;position:sticky;top:0}
+.ok{color:#087f5b;font-weight:bold}.ng{color:#c92a2a;font-weight:bold}
+.badge{padding:4px 8px;border-radius:12px;font-size:12px;font-weight:bold;background:#eef2f7}
+.urgent{background:#ffe3e3;color:#c92a2a}.disabled{color:#9ca3af}
+@media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}table{font-size:12px}}
+</style>
+</head>
+<body>
+<header><div><h1>領料即時作業看板</h1><div class="sub">資料來源：桌面「領料單建立作業」 Excel/CSV</div></div><div id="login">目前：示範管理者</div></header>
+<div class="wrap">
+<div class="cards">
+<div class="card">全部<div class="num" id="cAll">0</div></div>
+<div class="card">已備料<div class="num" id="cReady">0</div></div>
+<div class="card">未備料<div class="num" id="cNotReady">0</div></div>
+<div class="card">急單<div class="num" id="cUrgent">0</div></div>
+<div class="card">外務已取貨<div class="num" id="cPicked">0</div></div>
+</div>
+
+<div class="controls">
+<input id="search" placeholder="搜尋工廠／單別／領料單號／開單人員">
+<select id="factory"><option value="">全部工廠</option></select>
+<select id="status"><option value="">全部備料狀態</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
+<select id="urgentFilter"><option value="">急單：全部</option><option value="yes">急單</option><option value="no">非急單</option></select>
+<button onclick="loadDemo()">載入示範資料</button>
+<button onclick="document.getElementById('file').click()">選擇「領料單建立作業」</button>
+<input id="file" type="file" accept=".xlsx,.xls,.csv" style="display:none">
+</div>
+
+<div style="background:white;padding:10px;border-radius:8px;margin-bottom:10px">
+排序：<b>① 單據日期（新→舊） → ② 急單（✓→空白） → ③ 領料單號（小→大）</b>
+<span id="source" style="float:right;color:#6b7280"></span>
+</div>
+
+<div style="overflow:auto;max-height:65vh">
+<table><thead><tr>
+<th>工廠</th><th>單別</th><th>領料單號</th><th>開單人員</th><th>單據日期</th>
+<th>單據</th><th>備料</th><th>急單</th><th>外務已取貨</th>
+</tr></thead><tbody id="tbody"></tbody></table>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+let rows=[];
+const permission={urgent:true,pickedUp:true}; // 第一版示範管理者；正式版改成登入權限
+const actions=JSON.parse(localStorage.getItem("materialBoardActions")||"{}");
+
+function norm(s){return String(s??"").trim().replace(/\s+/g,"").replace(/　/g,"")}
+function findKey(obj, names){
+ const keys=Object.keys(obj);
+ for(const n of names){const x=norm(n); const k=keys.find(a=>norm(a)===x); if(k)return k}
+ for(const n of names){const x=norm(n); const k=keys.find(a=>norm(a).includes(x)); if(k)return k}
+ return null;
+}
+function parseDate(v){
+ if(v instanceof Date)return v;
+ if(typeof v==="number"){let d=new Date(Math.round((v-25569)*86400*1000));return d}
+ let s=String(v??"").trim().replace(/\//g,"-");
+ let m=s.match(/(\d{3})[-](\d{1,2})[-](\d{1,2})/);
+ if(m)return new Date(+m[1]+1911,+m[2]-1,+m[3]);
+ let d=new Date(s); return isNaN(d)?new Date(0):d;
+}
+function keyOf(r){return `${r.factory}|${r.type}|${r.no}`}
+function normalizeData(data){
+ if(!data.length)return [];
+ const sample=data[0];
+ const K={
+  factory:findKey(sample,["工廠","廠別","工廠別"]),
+  type:findKey(sample,["單別","單據別","單別代號"]),
+  no:findKey(sample,["領料單號","領料號","單號"]),
+  person:findKey(sample,["開單人員","開單人","建立人員","開單者"]),
+  date:findKey(sample,["單據日期","單據日","開單日期","日期"]),
+  confirm:findKey(sample,["確認碼","確認狀態","備料確認"]),
+  print:findKey(sample,["列印","列印數量","單據列印"])
+ };
+ return data.map(x=>({
+  factory:x[K.factory]??"",type:x[K.type]??"",no:x[K.no]??"",person:x[K.person]??"",
+  date:x[K.date]??"",confirm:String(x[K.confirm]??"").trim().toUpperCase(),
+  print:Number(String(x[K.print]??"").replace(/,/g,""))||0
+ })).filter(x=>x.no!=="");
+}
+function sortRows(a,b){
+ const d=parseDate(b.date)-parseDate(a.date); if(d)return d;
+ const au=!!actions[keyOf(a)]?.urgent, bu=!!actions[keyOf(b)]?.urgent;
+ if(au!==bu)return au?-1:1;
+ return String(a.no).localeCompare(String(b.no),"zh-Hant",{numeric:true});
+}
+function render(){
+ let q=norm(document.getElementById("search").value).toLowerCase();
+ let f=document.getElementById("factory").value, st=document.getElementById("status").value, uf=document.getElementById("urgentFilter").value;
+ let data=rows.filter(r=>{
+  const ready=r.confirm==="Y", urgent=!!actions[keyOf(r)]?.urgent;
+  const text=norm(`${r.factory}${r.type}${r.no}${r.person}`).toLowerCase();
+  return (!q||text.includes(q))&&(!f||r.factory===f)&&(!st||(st==="ready"?ready:!ready))&&(!uf||(uf==="yes"?urgent:!urgent));
+ }).sort(sortRows);
+ document.getElementById("cAll").textContent=rows.length;
+ document.getElementById("cReady").textContent=rows.filter(r=>r.confirm==="Y").length;
+ document.getElementById("cNotReady").textContent=rows.filter(r=>r.confirm==="N").length;
+ document.getElementById("cUrgent").textContent=rows.filter(r=>actions[keyOf(r)]?.urgent).length;
+ document.getElementById("cPicked").textContent=rows.filter(r=>actions[keyOf(r)]?.pickedUp).length;
+ document.getElementById("tbody").innerHTML=data.map(r=>{
+  const k=keyOf(r), a=actions[k]||{}, urgent=!!a.urgent, picked=!!a.pickedUp;
+  return `<tr>
+  <td>${esc(r.factory)}</td><td>${esc(r.type)}</td><td><b>${esc(r.no)}</b></td><td>${esc(r.person)}</td>
+  <td>${formatDate(r.date)}</td>
+  <td class="${r.print>0?'ok':'ng'}">${r.print>0?'已提供':'未提供'}</td>
+  <td class="${r.confirm==='Y'?'ok':'ng'}">${r.confirm==='Y'?'已備料完成':'未備料'}</td>
+  <td>${permission.urgent?`<input type="checkbox" ${urgent?'checked':''} onchange="toggle('${escAttr(k)}','urgent',this.checked)">`: '<span class="disabled">—</span>'}</td>
+  <td>${permission.pickedUp?`<input type="checkbox" ${picked?'checked':''} onchange="toggle('${escAttr(k)}','pickedUp',this.checked)">`: '<span class="disabled">—</span>'}</td>
+  </tr>`;
+ }).join("");
+}
+function toggle(k,field,v){actions[k]=actions[k]||{};actions[k][field]=v;actions[k][field+"Time"]=new Date().toLocaleString("zh-TW");localStorage.setItem("materialBoardActions",JSON.stringify(actions));render()}
+function formatDate(v){let d=parseDate(v);return d.getTime()?`${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`:esc(v)}
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function escAttr(v){return String(v).replace(/\\/g,"\\\\").replace(/'/g,"\\'")}
+function setFactories(){let s=document.getElementById("factory");s.innerHTML='<option value="">全部工廠</option>'+[...new Set(rows.map(r=>r.factory).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join("")}
+function loadDemo(){
+ rows=normalizeData([
+  {工廠:"A廠",單別:"1410",領料單號:"1150805005",開單人員:"王XX",單據日期:"115/08/05",確認碼:"Y",列印:1},
+  {工廠:"A廠",單別:"1410",領料單號:"1150805011",開單人員:"李XX",單據日期:"115/08/05",確認碼:"N",列印:1},
+  {工廠:"A廠",單別:"1410",領料單號:"1150805001",開單人員:"王XX",單據日期:"115/08/05",確認碼:"Y",列印:0},
+  {工廠:"B廠",單別:"1420",領料單號:"1150806002",開單人員:"陳XX",單據日期:"115/08/06",確認碼:"Y",列印:2}
+ ]);
+ setFactories();document.getElementById("source").textContent="示範資料";render();
+}
+document.getElementById("file").addEventListener("change",e=>{
+ const file=e.target.files[0];if(!file)return;
+ const reader=new FileReader();
+ reader.onload=ev=>{
+  try{
+   const wb=XLSX.read(ev.target.result,{type:"array",cellDates:true});
+   let all=[];
+   for(const ws of wb.SheetNames){const data=XLSX.utils.sheet_to_json(wb.Sheets[ws],{defval:""});all.push(...normalizeData(data))}
+   rows=all;setFactories();document.getElementById("source").textContent=file.name;render();
+  }catch(err){alert("Excel讀取失敗："+err.message)}
+ };
+ reader.readAsArrayBuffer(file);
+});
+["search","factory","status","urgentFilter"].forEach(id=>document.getElementById(id).addEventListener("input",render));
+loadDemo();
+</script>
+</body></html>
