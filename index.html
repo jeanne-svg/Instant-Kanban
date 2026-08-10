@@ -228,7 +228,7 @@ setInterval(()=>{
  actions=JSON.parse(localStorage.getItem("materialBoardActions")||"{}"); // 重新讀取，讓多分頁之間互相同步
  render();
  document.getElementById("clock").textContent="最後更新："+new Date().toLocaleTimeString("zh-TW",{hour12:false});
-},1000);
+},5000);
 
 loadDemo();
 </script>
