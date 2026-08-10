@@ -56,8 +56,8 @@ th{background:#e5e7eb;position:sticky;top:0}
 
 <div style="overflow:auto;max-height:65vh">
 <table><thead><tr>
-<th>工廠</th><th>單別</th><th>領料單號</th><th>開單人員</th><th>單據日期</th>
-<th>單據</th><th>備料</th><th>備料人</th><th>備料時間</th><th>急單</th><th>外務已取貨</th>
+<th>急單</th><th>工廠</th><th>單別</th><th>單號</th><th>開單人員</th><th>單據日期</th>
+<th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠外務</th>
 </tr></thead><tbody id="tbody"></tbody></table>
 </div>
 </div>
@@ -163,7 +163,7 @@ function render(){
   <td>${esc(r.factory)}</td><td>${esc(r.type)}</td><td><b>${esc(r.no)}</b></td><td>${esc(r.person)}</td>
   <td>${formatDate(r.date)}</td>
   <td class="${r.print>0?'ok':'ng'}">${r.print>0?'已提供':'未提供'}</td>
-  <td class="${r.confirm==='Y'?'ok':'ng'}">${r.confirm==='Y'?'已備料完成':'未備料'}</td>
+  <td class="${r.confirm==='Y'?'ok':'ng'}">${r.confirm==='Y'?'完成':'未完成'}</td>
   <td>${permission.preparer?`<input class="preparerInput" type="text" placeholder="填寫姓名" value="${esc(preparer)}" onchange="setPreparer('${escAttr(k)}',this.value)">`:esc(preparer)||'<span class="disabled">—</span>'}</td>
   <td>${formatPrepHours(r)}</td>
   <td>${permission.urgent?`<input type="checkbox" ${urgent?'checked':''} onchange="toggle('${escAttr(k)}','urgent',this.checked)">`: '<span class="disabled">—</span>'}</td>
