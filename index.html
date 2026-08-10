@@ -195,7 +195,7 @@ function setPreparer(k,v){actions[k]=actions[k]||{};actions[k].preparer=v.trim()
 function formatDate(v){let d=parseDate(v);return d.getTime()?`${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`:esc(v)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function escAttr(v){return String(v).replace(/\\/g,"\\\\").replace(/'/g,"\\'")}
-function setFactories(){let s=document.getElementById("factory");s.innerHTML='<option value="">全部工廠</option>'+[...new Set(rows.map(r=>r.factory).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join("")}
+function setFactories(){let s=document.getElementById("factory");s.innerHTML='<option value="">工廠：全部</option>'+[...new Set(rows.map(r=>r.factory).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join("")}
 function loadDemo(){
  rows=normalizeData([
   {工廠:"A廠",單別:"1410",領料單號:"1150805005",開單人員:"王XX",核單人:"張XX",單據日期:"115/08/05",確認碼:"Y",列印:1,建立時間:"09:55:23",修改時間:"13:27:31"},
