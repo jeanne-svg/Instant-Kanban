@@ -33,9 +33,9 @@ th{background:#e5e7eb;position:sticky;top:0}
 <div class="cards">
 <div class="card">全部<div class="num" id="cAll">0</div></div>
 <div class="card">轉撥單<div class="num" id="cAll">0</div></div> 
+<div class="card">急單<div class="num" id="cUrgent">0</div></div>
 <div class="card">已備料<div class="num" id="cReady">0</div></div>
 <div class="card">未備料<div class="num" id="cNotReady">0</div></div>
-<div class="card">急單<div class="num" id="cUrgent">0</div></div>
 <div class="card">外務已取貨<div class="num" id="cPicked">0</div></div>
 </div>
 
@@ -44,9 +44,9 @@ th{background:#e5e7eb;position:sticky;top:0}
 <select id="factory"><option value="">工廠：全部</option></select>
 <select id="transfer"><option value="">轉撥：全部</option><option value="ready">已備料</option><option value="notready">未備料</option>
 </select>
-<select id="status"><option value="">備料：全部</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
 <select id="urgentFilter"><option value="">急單：全部</option><option value="yes">急單</option><option value="no">非急單</option></select>
- <select id="urgentFilter"><option value="">工廠外務取貨：全部</option><option value="yes">已取回</option><option value="no">未取回</option></select>
+<select id="status"><option value="">備料：全部</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
+<select id="urgentFilter"><option value="">工廠外務取貨：全部</option><option value="yes">已取回</option><option value="no">未取回</option></select>
 <button onclick="loadDemo()">查詢資料</button>
 <input id="file" type="file" accept=".xlsx,.xls,.csv" style="display:none">
 <span style="margin-left:auto;color:#6b7280;font-size:12px" id="clock"></span>
