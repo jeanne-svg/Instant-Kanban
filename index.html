@@ -31,8 +31,8 @@ th{background:#e5e7eb;position:sticky;top:0}
 <header><div><h1>領料即時作業看板</h1><div class="sub">資料來源：ERP資料庫「領料單建立作業、製令命令建立作業、轉撥單據建立作業」 </div></div><div id="login"><span class="liveDot"></span>管理者：倉庫人員(全)</div></header>
 <div class="wrap">
 <div class="cards">
-<div class="card">轉撥單<div class="num" id="cAll">0</div></div> 
 <div class="card">全部<div class="num" id="cAll">0</div></div>
+<div class="card">轉撥單<div class="num" id="cAll">0</div></div> 
 <div class="card">已備料<div class="num" id="cReady">0</div></div>
 <div class="card">未備料<div class="num" id="cNotReady">0</div></div>
 <div class="card">急單<div class="num" id="cUrgent">0</div></div>
@@ -41,9 +41,9 @@ th{background:#e5e7eb;position:sticky;top:0}
 
 <div class="controls">
 <input id="search" placeholder="搜尋工廠／單別／領料單號／開單人員">
+<select id="factory"><option value="">工廠：全部</option></select>
 <select id="transfer"><option value="">轉撥：全部</option><option value="ready">已備料</option><option value="notready">未備料</option>
 </select>
-<select id="factory"><option value="">工廠：全部</option></select>
 <select id="status"><option value="">備料：全部</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
 <select id="urgentFilter"><option value="">急單：全部</option><option value="yes">急單</option><option value="no">非急單</option></select>
  <select id="urgentFilter"><option value="">工廠外務取貨：全部</option><option value="yes">已取回</option><option value="no">未取回</option></select>
