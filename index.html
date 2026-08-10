@@ -40,9 +40,10 @@ th{background:#e5e7eb;position:sticky;top:0}
 
 <div class="controls">
 <input id="search" placeholder="搜尋工廠／單別／領料單號／開單人員">
-<select id="factory"><option value="">全部工廠</option></select>
-<select id="status"><option value="">全部備料狀態</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
+<select id="factory"><option value="">工廠：全部</option></select>
+<select id="status"><option value="">備料：全部</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
 <select id="urgentFilter"><option value="">急單：全部</option><option value="yes">急單</option><option value="no">非急單</option></select>
+ <select id="urgentFilter"><option value="">外務取貨：全部</option><option value="yes">已取回</option><option value="no">未取回</option></select>
 <button onclick="loadDemo()">載入示範資料</button>
 <button onclick="document.getElementById('file').click()">選擇「領料單建立作業」</button>
 <input id="file" type="file" accept=".xlsx,.xls,.csv" style="display:none">
