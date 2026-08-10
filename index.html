@@ -28,20 +28,20 @@ th{background:#e5e7eb;position:sticky;top:0}
 </style>
 </head>
 <body>
-<header><div><h1>領料即時作業看板</h1><div class="sub">資料來源：桌面「領料單建立作業」 Excel/CSV</div></div><div id="login"><span class="liveDot"></span>目前：管理者</div></header>
+<header><div><h1>領料即時作業看板</h1><div class="sub">資料來源：桌面「領料單建立作業」 Excel/CSV</div></div><div id="login"><span class="liveDot"></span>目前：示範管理者</div></header>
 <div class="wrap">
 <div class="cards">
 <div class="card">全部<div class="num" id="cAll">0</div></div>
- <div class="card">急單<div class="num" id="cUrgent">0</div></div>
-<div class="card">未備料<div class="num" id="cNotReady">0</div></div>
 <div class="card">已備料<div class="num" id="cReady">0</div></div>
+<div class="card">未備料<div class="num" id="cNotReady">0</div></div>
+<div class="card">急單<div class="num" id="cUrgent">0</div></div>
 <div class="card">外務已取貨<div class="num" id="cPicked">0</div></div>
 </div>
 
 <div class="controls">
 <input id="search" placeholder="搜尋工廠／單別／領料單號／開單人員">
-<select id="factory"><option value="">工廠:全部</option></select>
-<select id="status"><option value="">備料:全部</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
+<select id="factory"><option value="">全部工廠</option></select>
+<select id="status"><option value="">全部備料狀態</option><option value="ready">已備料</option><option value="notready">未備料</option></select>
 <select id="urgentFilter"><option value="">急單：全部</option><option value="yes">急單</option><option value="no">非急單</option></select>
 <button onclick="loadDemo()">載入示範資料</button>
 <button onclick="document.getElementById('file').click()">選擇「領料單建立作業」</button>
@@ -50,7 +50,7 @@ th{background:#e5e7eb;position:sticky;top:0}
 </div>
 
 <div style="background:white;padding:10px;border-radius:8px;margin-bottom:10px">
-排序優先條件：<b>① 急單 → ② 單據日期 → ③ 領料單號 → ④ 外務已取貨 </b>
+排序：<b>① 急單（✓優先） → ② 單據（已提供優先） → ③ 單據日期（舊→新） → ④ 領料單號（小→大） → ⑤ 備料（完成優先） → ⑥ 工廠外務（未取貨優先，已取貨反灰並沉到最後）</b>
 <span id="source" style="float:right;color:#6b7280"></span>
 </div>
 
@@ -115,6 +115,7 @@ function normalizeData(data){
   type:findKey(sample,["單別","單據別","單別代號"]),
   no:findKey(sample,["領料單號","領料號","單號"]),
   person:findKey(sample,["開單人員","開單人","建立人員","開單者"]),
+  approver:findKey(sample,["核單人","核單人員","覆核人","覆核人員","核准人"]),
   date:findKey(sample,["單據日期","單據日","開單日期","日期"]),
   confirm:findKey(sample,["確認碼","確認狀態","備料確認"]),
   print:findKey(sample,["列印","列印數量","單據列印"]),
@@ -123,6 +124,7 @@ function normalizeData(data){
  };
  return data.map(x=>({
   factory:x[K.factory]??"",type:x[K.type]??"",no:x[K.no]??"",person:x[K.person]??"",
+  approver:x[K.approver]??"",
   date:x[K.date]??"",confirm:String(x[K.confirm]??"").trim().toUpperCase(),
   print:Number(String(x[K.print]??"").replace(/,/g,""))||0,
   createTime:K.createTime?x[K.createTime]:null,
@@ -130,16 +132,31 @@ function normalizeData(data){
  })).filter(x=>x.no!=="");
 }
 function sortRows(a,b){
- // ① 外務已取貨：未取貨優先，已取貨沉到最後
+ // 外務：未取貨優先，已取貨（反灰）整組沉到最後 —— 這是最外層的分組依據
  const ap=!!actions[keyOf(a)]?.pickedUp, bp=!!actions[keyOf(b)]?.pickedUp;
  if(ap!==bp) return ap?1:-1;
- // ② 單據日期新→舊
- const d=parseDate(b.date)-parseDate(a.date); if(d)return d;
- // ③ 急單優先
+
+ // 同一組內（未取貨 或 已取貨）依序比較以下條件：
+ // ① 急單：已勾選優先
  const au=!!actions[keyOf(a)]?.urgent, bu=!!actions[keyOf(b)]?.urgent;
- if(au!==bu)return au?-1:1;
- // ④ 領料單號小→大
- return String(a.no).localeCompare(String(b.no),"zh-Hant",{numeric:true});
+ if(au!==bu) return au?-1:1;
+
+ // ② 單據：已提供優先
+ const apd=a.print>0, bpd=b.print>0;
+ if(apd!==bpd) return apd?-1:1;
+
+ // ③ 單據日期：舊→新
+ const d=parseDate(a.date)-parseDate(b.date); if(d)return d;
+
+ // ④ 領料單號：小→大
+ const noCmp=String(a.no).localeCompare(String(b.no),"zh-Hant",{numeric:true});
+ if(noCmp) return noCmp;
+
+ // ⑤ 備料：已完成優先
+ const ar=a.confirm==="Y", br=b.confirm==="Y";
+ if(ar!==br) return ar?-1:1;
+
+ return 0;
 }
 function render(){
  // 有人正在「備料人」欄位打字時，先跳過這次自動刷新，避免打斷輸入
@@ -158,15 +175,16 @@ function render(){
  document.getElementById("cUrgent").textContent=rows.filter(r=>actions[keyOf(r)]?.urgent).length;
  document.getElementById("cPicked").textContent=rows.filter(r=>actions[keyOf(r)]?.pickedUp).length;
  document.getElementById("tbody").innerHTML=data.map(r=>{
-  const k=keyOf(r), a=actions[k]||{}, urgent=!!a.urgent, picked=!!a.pickedUp, preparer=a.preparer||"";
+  const k=keyOf(r), a=actions[k]||{}, urgent=!!a.urgent, picked=!!a.pickedUp;
+  const preparer=(a.preparer!==undefined&&a.preparer!==null)?a.preparer:(r.approver||"");
   return `<tr class="${picked?'picked-row':''}">
+  <td>${permission.urgent?`<input type="checkbox" ${urgent?'checked':''} onchange="toggle('${escAttr(k)}','urgent',this.checked)">`: '<span class="disabled">—</span>'}</td>
   <td>${esc(r.factory)}</td><td>${esc(r.type)}</td><td><b>${esc(r.no)}</b></td><td>${esc(r.person)}</td>
   <td>${formatDate(r.date)}</td>
   <td class="${r.print>0?'ok':'ng'}">${r.print>0?'已提供':'未提供'}</td>
   <td class="${r.confirm==='Y'?'ok':'ng'}">${r.confirm==='Y'?'完成':'未完成'}</td>
   <td>${permission.preparer?`<input class="preparerInput" type="text" placeholder="填寫姓名" value="${esc(preparer)}" onchange="setPreparer('${escAttr(k)}',this.value)">`:esc(preparer)||'<span class="disabled">—</span>'}</td>
   <td>${formatPrepHours(r)}</td>
-  <td>${permission.urgent?`<input type="checkbox" ${urgent?'checked':''} onchange="toggle('${escAttr(k)}','urgent',this.checked)">`: '<span class="disabled">—</span>'}</td>
   <td>${permission.pickedUp?`<input type="checkbox" ${picked?'checked':''} onchange="toggle('${escAttr(k)}','pickedUp',this.checked)">`: '<span class="disabled">—</span>'}</td>
   </tr>`;
  }).join("");
@@ -180,10 +198,10 @@ function escAttr(v){return String(v).replace(/\\/g,"\\\\").replace(/'/g,"\\'")}
 function setFactories(){let s=document.getElementById("factory");s.innerHTML='<option value="">全部工廠</option>'+[...new Set(rows.map(r=>r.factory).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join("")}
 function loadDemo(){
  rows=normalizeData([
-  {工廠:"A廠",單別:"1410",領料單號:"1150805005",開單人員:"王XX",單據日期:"115/08/05",確認碼:"Y",列印:1,建立時間:"09:55:23",修改時間:"13:27:31"},
-  {工廠:"A廠",單別:"1410",領料單號:"1150805011",開單人員:"李XX",單據日期:"115/08/05",確認碼:"N",列印:1,建立時間:"10:18:00",修改時間:"13:21:10"},
-  {工廠:"A廠",單別:"1410",領料單號:"1150805001",開單人員:"王XX",單據日期:"115/08/05",確認碼:"Y",列印:0,建立時間:"23:40:00",修改時間:"00:15:00"},
-  {工廠:"B廠",單別:"1420",領料單號:"1150806002",開單人員:"陳XX",單據日期:"115/08/06",確認碼:"Y",列印:2,建立時間:"08:05:00",修改時間:"09:00:00"}
+  {工廠:"A廠",單別:"1410",領料單號:"1150805005",開單人員:"王XX",核單人:"張XX",單據日期:"115/08/05",確認碼:"Y",列印:1,建立時間:"09:55:23",修改時間:"13:27:31"},
+  {工廠:"A廠",單別:"1410",領料單號:"1150805011",開單人員:"李XX",核單人:"張XX",單據日期:"115/08/05",確認碼:"N",列印:1,建立時間:"10:18:00",修改時間:"13:21:10"},
+  {工廠:"A廠",單別:"1410",領料單號:"1150805001",開單人員:"王XX",核單人:"陳XX",單據日期:"115/08/05",確認碼:"Y",列印:0,建立時間:"23:40:00",修改時間:"00:15:00"},
+  {工廠:"B廠",單別:"1420",領料單號:"1150806002",開單人員:"陳XX",核單人:"林XX",單據日期:"115/08/06",確認碼:"Y",列印:2,建立時間:"08:05:00",修改時間:"09:00:00"}
  ]);
  setFactories();document.getElementById("source").textContent="示範資料";render();
 }
