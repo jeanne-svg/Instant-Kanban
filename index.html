@@ -102,7 +102,7 @@ tbody tr:hover td{background:#f9fafb}
   <select id="borrow"><option value="">借出：全部</option><option value="yes">借出單</option><option value="no">非借出</option></select>
   <input id="search" placeholder="搜尋製令單號／領料單號／工廠／開單人員">
   <div class="legend">
-   排序：<b>①單據日期 ②急單 ③單別 ④單號 ⑤未備料 ⑥工廠取貨</b><br>
+   排序：<b>①單據日期 ②急單 ③單據 ④單別 ⑤單號 ⑥備料 ⑦工廠取貨</b><br>
    <span class="warn">※ 逾期未取置頂</span>
   </div>
  </div>
@@ -232,18 +232,23 @@ function sortRows(a,b){
  const au=!!actions[keyOf(a)]?.urgent,bu=!!actions[keyOf(b)]?.urgent;
  if(au!==bu)return au?-1:1;
 
- // ③單別（小至大）
+ // ③單據（已提供→未列印）
+ const apd=a.pages>0,bpd=b.pages>0;
+ if(apd!==bpd)return apd?-1:1;
+
+ // ④單別（小至大）
  const t=String(a.type).localeCompare(String(b.type),"zh-Hant",{numeric:true});
  if(t)return t;
 
- // ④單號（小至大）
+ // ⑤單號（小至大）
  const noCmp=String(a.no).localeCompare(String(b.no),"zh-Hant",{numeric:true});
  if(noCmp)return noCmp;
 
- // ⑤未備料→已備料（未核單→已核單）
+ // ⑥備料（未備料→已備料＝未核單→已核單）
  const ar=a.confirm==="Y",br=b.confirm==="Y";
  if(ar!==br)return ar?1:-1;
 
+ // ⑦工廠取貨（未取貨→已取貨，已由上方分組處理，此處僅作保底比較）
  return 0;
 }
 
