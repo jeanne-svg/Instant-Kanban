@@ -113,7 +113,7 @@ tbody tr:hover td{background:#f9fafb}
   <thead><tr>
    <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
    <th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
-   <th title="統計目前篩選條件下顯示出來的這批單據（例如預設的「建立日期：當天」）：&#10;未備料＝尚未核單、尚未取貨的張數&#10;待取＝尚未取貨的張數合計（未備料＋已備料未取）">當日單據統計</th>
+   <th title="未備料＝未核單、單據日期≧今天、且尚未取貨的張數&#10;待取＝未備料 ＋ 已備料但單據日期≧今天尚未取貨 ＋ 逾期未取（單據日期＜今天且尚未取貨）">當日單據統計</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
  </table>
@@ -168,17 +168,20 @@ function isOverdue(r){
  const dd=new Date(d);dd.setHours(0,0,0,0);
  return dd.getTime()<today.getTime();
 }
-// 依「工廠」統計目前畫面上顯示的這批單據（不額外加「建立日期＝今天」的條件——
-// 畫面預設就是用上方的「建立日期：當天」篩選在控制範圍，這裡只單純統計備料／取貨狀況）：
-//  notReady＝尚未核單（未備料）、且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
-//  pending＝尚未取貨的張數合計（未備料＋已備料未取）→ 待取
+// 依「工廠」統計目前篩選條件下顯示出來的這批單據：
+//  未備料＝未核單（尚未備料）、單據日期≧今天、且尚未取貨的張數 → 今天以後到期、需要通知人員備料或通知生管改單據日期
+//  待取＝未備料（同上） ＋ 已備料但單據日期≧今天且尚未取貨 ＋ 逾期未取（單據日期＜今天、不論是否已備料、只要尚未取貨）
+//  逾期未取的單子不併入「未備料」數字（因為性質不同：那些需要的是催工廠來取，不是催備料），但仍計入「待取」總量
 function computeFactoryStats(list){
+ const today=new Date();today.setHours(0,0,0,0);
  const stats={};
  list.forEach(r=>{
   if(!!actions[keyOf(r)]?.pickedUp)return; // 已取貨的不列入統計
+  const dd=parseDate(r.date);dd.setHours(0,0,0,0);
+  const overdue=dd.getTime()<today.getTime();
   stats[r.factory]=stats[r.factory]||{notReady:0,pending:0};
-  stats[r.factory].pending++;
-  if(r.confirm!=="Y")stats[r.factory].notReady++;
+  stats[r.factory].pending++; // 未備料(≧今天) ＋ 已備料未取(≧今天) ＋ 逾期未取，三者合計
+  if(!overdue&&r.confirm!=="Y")stats[r.factory].notReady++; // 只有「單據日期≧今天」的未核單才算進未備料
  });
  return stats;
 }
@@ -359,12 +362,11 @@ function loadDemo(){
   const createOffset=Math.random()<0.7?0:-(1+Math.floor(Math.random()*3));
   const createDate=new Date(today);createDate.setDate(createDate.getDate()+createOffset);
 
-  // 單據日期：多數與建立日期同天；部分較早（可能逾期未取）；部分較晚（預先開立）
+  // 單據日期：一律 ≧ 建立日期，不會早於建立日期。
+  // 多數與建立日期同天；少數晚於建立日期（預先開立作業）。
+  // 若建立日期本身是前幾天（見上方 createOffset），同天的單據日期也可能因此早於「今天」而形成逾期未取。
   const roll=Math.random();
-  let docOffset;
-  if(roll<0.6) docOffset=0;
-  else if(roll<0.85) docOffset=-(1+Math.floor(Math.random()*4));
-  else docOffset=1+Math.floor(Math.random()*2);
+  const docOffset=roll<0.65?0:(1+Math.floor(Math.random()*2));
   const docDate=new Date(createDate);docDate.setDate(docDate.getDate()+docOffset);
 
   const pages=Math.random()<0.85?(1+Math.floor(Math.random()*3)):0;
