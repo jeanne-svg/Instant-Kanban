@@ -1,69 +1,3 @@
-
-Claude finished the response
-
-<!DOCTYPE html> <html lang=“zh-Hant”> <頭> <meta charset=“UTF-8”> <meta name=“viewport” 內容=“width=device-width，initial-scale=1”> <title>領料即時看板</title> <風格> body{font-family：“Microsoft JhengHei”，Arial，sans-serif;margin：0;背景：#f3f5f7;顏色：#222} header{background：#1f2937;色彩
-
-貼上
-
-抓取資料的條件是什麼
-
-
-8 的思考
-8 的思考
-看了程式碼後,目前這個看板實際上並沒有真正連接 ERP 資料庫，雖然頁首寫著「資料來源：ERP資料庫」。目前資料抓取只有兩種方式:
-
-1. 點擊「查詢資料」按鈕
-
-司法
-<button onclick="loadDemo()">查詢資料</button>
-這個按鈕呼叫的是loadDemo(),裡面是寫死在程式碼裡的 4 筆示範資料（A廠、B廠的假單號），並不會去查詢任何真實的 ERP 資料庫或 API。也就是說不管按幾次,永遠只會出現這 4 筆固定資料。
-
-2. 上傳 Excel/CSV 檔案
-
-司法
-document.getElementById("file").addEventListener("change", ...)
-有一個隱藏的檔案上傳欄位(<input id="file" type="file" ... style="display:none">），使用者選檔後才會用 SheetJS （xlsx.full.min.js) 讀取.xlsx/.xls/.csv,並跑normalizeData()去比對欄位名稱(如「工廠」「單別」「領料單號」等)轉成資料列。但這個 file input 目前沒有對應的可見按鈕讓使用者點擊觸發選檔,介面上看不到觸發它的地方。
-
-
- 裡對已載入的  做以下條件過濾：
-
-搜尋文字(工廠/單別/領料單號/開單人員)
-工廠下拉選單
-備料狀態(已備料/未備料,依confirm==="Y")
-急單篩選(依actions[key].urgent)
-
-1787121584002_image.png
-幫我把介面調整為如圖並凍結視窗
-
-
-查看檔案、建立檔案、讀取檔案
-查看檔案、建立檔案、讀取檔案
-已依照截圖調整完成,重點更新如下:
-
-版面對齊截圖
-
-標題列改為白底,「領料即時作業看板」+ 藍色「(當月資料)」,右上角加「管理者/查詢範圍」文字、綠色「SQL 連線正常」與藍色「3秒後刷新」徽章
-統計卡改為 6 格:本月全部、轉撥單、急單(紅)、未備料(橘)、已備料(綠)、已取貨(紫)
-篩選列補齊:工廠／轉撥／急單／備料／取貨／開單／借出 + 搜尋製令單號,右側顯示排序規則與「※逾期未取置紅」提示
-表格欄位改為:急單／工廠／單別單號／製令單號／開單人員／單據日期／單據／單據頁數／備料／備料人員／備料時間／工廠取貨
-
-
-其他邏輯
-
-「逾期未取」規則:單據日期非當天且尚未勾選「工廠取貨」的資料列會整列標紅
-內建 130 筆示範資料方便你測試捲動與篩選，實際串接時只要把 換成呼叫你的 ERP API 即可，其餘欄位對應邏輯（）已預留好中文欄名比對loadDemo()normalizeData
-
-材質板
-代碼· HTML 
-
-
-
-
-
-Claude 是 AI，會犯錯。請再次確認回覆。
-
-
-材質板· HTML
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -79,10 +13,10 @@ Claude 是 AI，會犯錯。請再次確認回覆。
 html,body{height:100%;margin:0}
 body{font-family:"Microsoft JhengHei","PingFang TC",Arial,sans-serif;background:var(--bg);color:var(--text);
  display:flex;flex-direction:column;overflow:hidden}
- 
+
 /* ---------- Frozen top section ---------- */
 .frozen{flex:0 0 auto;background:var(--bg)}
- 
+
 header{background:white;border-bottom:1px solid var(--line);padding:14px 22px;
  display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px}
 .title-row{display:flex;align-items:baseline;gap:8px}
@@ -95,14 +29,14 @@ h1{margin:0;font-size:21px;font-weight:700;color:#111827}
 .pill.info{background:#e8f0fe;color:var(--blue)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.1s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
- 
+
 .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:14px 22px 0}
 .card{background:white;border-radius:10px;padding:14px 10px;text-align:center;box-shadow:0 1px 3px #0001}
 .card .lbl{font-size:12.5px;color:var(--muted)}
 .card .num{font-size:26px;font-weight:800;margin-top:4px}
 .num.all{color:#111827}.num.transfer{color:#111827}.num.urgent{color:var(--red)}
 .num.notready{color:var(--orange)}.num.ready{color:var(--green)}.num.picked{color:var(--purple)}
- 
+
 .controls{margin:12px 22px 10px;background:white;border-radius:10px;padding:10px 12px;
  display:flex;gap:8px;flex-wrap:wrap;align-items:center;box-shadow:0 1px 3px #0001}
 .controls select,.controls input{padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;background:white;font-size:13px}
@@ -110,7 +44,7 @@ h1{margin:0;font-size:21px;font-weight:700;color:#111827}
 .legend{margin-left:auto;text-align:right;font-size:12px;color:var(--muted);line-height:1.5}
 .legend b{color:#374151}
 .legend .warn{color:var(--red);font-weight:600}
- 
+
 /* ---------- Scrollable table area ---------- */
 .table-wrap{flex:1;overflow:auto;margin:0 22px 16px;background:white;border-radius:10px;box-shadow:0 1px 3px #0001}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -130,7 +64,7 @@ tbody tr:hover td{background:#f9fafb}
 </style>
 </head>
 <body>
- 
+
 <div class="frozen">
  <header>
   <div>
@@ -143,7 +77,7 @@ tbody tr:hover td{background:#f9fafb}
    <span class="pill info" id="refreshPill">3 秒後刷新</span>
   </div>
  </header>
- 
+
  <div class="cards">
   <div class="card"><div class="lbl">本月全部</div><div class="num all" id="cAll">0</div></div>
   <div class="card"><div class="lbl">轉撥單</div><div class="num transfer" id="cTransfer">0</div></div>
@@ -152,7 +86,7 @@ tbody tr:hover td{background:#f9fafb}
   <div class="card"><div class="lbl">已備料</div><div class="num ready" id="cReady">0</div></div>
   <div class="card"><div class="lbl">已取貨</div><div class="num picked" id="cPicked">0</div></div>
  </div>
- 
+
  <div class="controls">
   <select id="factory"><option value="">工廠：全部</option></select>
   <select id="transfer"><option value="">轉撥：全部</option><option value="yes">轉撥單</option><option value="no">非轉撥</option></select>
@@ -168,7 +102,7 @@ tbody tr:hover td{background:#f9fafb}
   </div>
  </div>
 </div>
- 
+
 <div class="table-wrap">
  <table>
   <thead><tr>
@@ -178,12 +112,12 @@ tbody tr:hover td{background:#f9fafb}
   <tbody id="tbody"></tbody>
  </table>
 </div>
- 
+
 <script>
 let rows=[];
 const permission={urgent:true,pickedUp:true,preparer:true};
 let actions=JSON.parse(localStorage.getItem("materialBoardActions")||"{}");
- 
+
 function norm(s){return String(s??"").trim().replace(/\s+/g,"").replace(/　/g,"")}
 function findKey(obj,names){
  const keys=Object.keys(obj);
@@ -228,7 +162,7 @@ function isOverdue(r){
  const dd=new Date(d);dd.setHours(0,0,0,0);
  return dd.getTime()<today.getTime();
 }
- 
+
 function normalizeData(data){
  if(!data.length)return [];
  const sample=data[0];
@@ -258,7 +192,7 @@ function normalizeData(data){
   modifyTime:K.modifyTime?x[K.modifyTime]:null
  })).filter(x=>x.no!=="");
 }
- 
+
 function sortRows(a,b){
  const ap=!!actions[keyOf(a)]?.pickedUp,bp=!!actions[keyOf(b)]?.pickedUp;
  if(ap!==bp)return ap?1:-1;
@@ -273,10 +207,10 @@ function sortRows(a,b){
  if(ar!==br)return ar?-1:1;
  return 0;
 }
- 
+
 function render(){
  if(document.activeElement&&document.activeElement.classList&&document.activeElement.classList.contains("preparerInput"))return;
- 
+
  let q=norm(document.getElementById("search").value).toLowerCase();
  let f=document.getElementById("factory").value;
  let tr=document.getElementById("transfer").value;
@@ -285,7 +219,7 @@ function render(){
  let pf=document.getElementById("pickedFilter").value;
  let pr=document.getElementById("person").value;
  let bo=document.getElementById("borrow").value;
- 
+
  let data=rows.filter(r=>{
   const ready=r.confirm==="Y",urgent=!!actions[keyOf(r)]?.urgent,picked=!!actions[keyOf(r)]?.pickedUp;
   const text=norm(`${r.factory}${r.type}${r.no}${r.orderNo}${r.person}`).toLowerCase();
@@ -298,14 +232,14 @@ function render(){
    &&(!pr||r.person===pr)
    &&(!bo||(bo==="yes"?r.borrow:!r.borrow));
  }).sort(sortRows);
- 
+
  document.getElementById("cAll").textContent=rows.length;
  document.getElementById("cTransfer").textContent=rows.filter(r=>r.transfer).length;
  document.getElementById("cReady").textContent=rows.filter(r=>r.confirm==="Y").length;
  document.getElementById("cNotReady").textContent=rows.filter(r=>r.confirm==="N").length;
  document.getElementById("cUrgent").textContent=rows.filter(r=>actions[keyOf(r)]?.urgent).length;
  document.getElementById("cPicked").textContent=rows.filter(r=>actions[keyOf(r)]?.pickedUp).length;
- 
+
  document.getElementById("tbody").innerHTML=data.map(r=>{
   const k=keyOf(r),a=actions[k]||{},urgent=!!a.urgent,picked=!!a.pickedUp,overdue=isOverdue(r);
   const preparer=(a.preparer!==undefined&&a.preparer!==null)?a.preparer:(r.approver||"");
@@ -326,14 +260,14 @@ function render(){
   </tr>`;
  }).join("");
 }
- 
+
 function persist(){localStorage.setItem("materialBoardActions",JSON.stringify(actions))}
 function toggle(k,field,v){actions[k]=actions[k]||{};actions[k][field]=v;actions[k][field+"Time"]=new Date().toLocaleString("zh-TW");persist();render()}
 function setPreparer(k,v){actions[k]=actions[k]||{};actions[k].preparer=v.trim();actions[k].preparerTime=new Date().toLocaleString("zh-TW");persist();render()}
 function formatDate(v){let d=parseDate(v);return d.getTime()?`${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`:esc(v)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function escAttr(v){return String(v).replace(/\\/g,"\\\\").replace(/'/g,"\\'")}
- 
+
 function setFactories(){
  let s=document.getElementById("factory");
  s.innerHTML='<option value="">工廠：全部</option>'+[...new Set(rows.map(r=>r.factory).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join("");
@@ -342,7 +276,7 @@ function setPersons(){
  let s=document.getElementById("person");
  s.innerHTML='<option value="">開單：全部</option>'+[...new Set(rows.map(r=>r.person).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join("");
 }
- 
+
 // ---- demo dataset (stand-in for the ERP query, until it's wired to a real API) ----
 function loadDemo(){
  const factories=["A廠","B廠","C廠"];
@@ -375,19 +309,16 @@ function loadDemo(){
  persist();
  setFactories();setPersons();render();
 }
- 
+
 ["search","factory","transfer","urgentFilter","status","pickedFilter","person","borrow"]
  .forEach(id=>document.getElementById(id).addEventListener("input",render));
- 
+
 // auto-refresh every 3 seconds — mirrors the "3秒後刷新" pill, and keeps multiple tabs of this board in sync
 setInterval(()=>{
  actions=JSON.parse(localStorage.getItem("materialBoardActions")||"{}");
  render();
 },3000);
- 
+
 loadDemo();
 </script>
 </body></html>
- 
-
-
