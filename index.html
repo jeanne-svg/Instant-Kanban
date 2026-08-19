@@ -88,6 +88,7 @@ tbody tr:hover td{background:#f9fafb}
  </div>
 
  <div class="controls">
+  <select id="createDateFilter"><option value="today">建立日期：當天</option><option value="">建立日期：全部</option></select>
   <select id="factory"><option value="">工廠：全部</option></select>
   <select id="transfer"><option value="">轉撥：全部</option><option value="yes">轉撥單</option><option value="no">非轉撥</option></select>
   <select id="urgentFilter"><option value="">急單：全部</option><option value="yes">急單</option><option value="no">非急單</option></select>
@@ -97,8 +98,8 @@ tbody tr:hover td{background:#f9fafb}
   <select id="borrow"><option value="">借出：全部</option><option value="yes">借出單</option><option value="no">非借出</option></select>
   <input id="search" placeholder="搜尋製令單號／領料單號／工廠／開單人員">
   <div class="legend">
-   排序：<b>①單別 ②急單 ③單據 ④單據日期 ⑤領料單號 ⑥備料 ⑦外務</b><br>
-   <span class="warn">※逾期未取置紅</span>
+   排序：<b>①單據日期 ②急單 ③單別 ④單號 ⑤未備料 ⑥工廠取貨</b><br>
+   <span class="warn">※ 逾期未取置頂</span>
   </div>
  </div>
 </div>
@@ -106,7 +107,7 @@ tbody tr:hover td{background:#f9fafb}
 <div class="table-wrap">
  <table>
   <thead><tr>
-   <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>單據日期</th>
+   <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
    <th>單據</th><th>單據頁數</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -174,6 +175,7 @@ function normalizeData(data){
   person:findKey(sample,["開單人員","開單人","建立人員","開單者"]),
   approver:findKey(sample,["核單人","核單人員","覆核人","覆核人員","核准人"]),
   date:findKey(sample,["單據日期","單據日","開單日期","日期"]),
+  createDate:findKey(sample,["建立日期","建檔日期","登錄日期"]),
   confirm:findKey(sample,["確認碼","確認狀態","備料確認"]),
   pages:findKey(sample,["單據頁數","列印數量","列印"]),
   transfer:findKey(sample,["轉撥","轉撥單","轉撥碼"]),
@@ -183,7 +185,7 @@ function normalizeData(data){
  };
  return data.map(x=>({
   factory:x[K.factory]??"",type:x[K.type]??"",no:x[K.no]??"",orderNo:x[K.orderNo]??"",
-  person:x[K.person]??"",approver:x[K.approver]??"",date:x[K.date]??"",
+  person:x[K.person]??"",approver:x[K.approver]??"",date:x[K.date]??"",createDate:x[K.createDate]??"",
   confirm:String(x[K.confirm]??"").trim().toUpperCase(),
   pages:Number(String(x[K.pages]??"").replace(/,/g,""))||0,
   transfer:String(x[K.transfer]??"").trim().toUpperCase()==="Y",
@@ -194,17 +196,33 @@ function normalizeData(data){
 }
 
 function sortRows(a,b){
+ // ※ 逾期未取（單據日期已過且尚未工廠取貨）永遠置頂
+ const ao=isOverdue(a),bo=isOverdue(b);
+ if(ao!==bo)return ao?-1:1;
+
+ // 已取貨（反灰）永遠置尾
  const ap=!!actions[keyOf(a)]?.pickedUp,bp=!!actions[keyOf(b)]?.pickedUp;
  if(ap!==bp)return ap?1:-1;
+
+ // ①單據日期（小至大）
+ const d=parseDate(a.date)-parseDate(b.date);if(d)return d;
+
+ // ②急單（✓優先）
  const au=!!actions[keyOf(a)]?.urgent,bu=!!actions[keyOf(b)]?.urgent;
  if(au!==bu)return au?-1:1;
- const apd=a.pages>0,bpd=b.pages>0;
- if(apd!==bpd)return apd?-1:1;
- const d=parseDate(a.date)-parseDate(b.date);if(d)return d;
+
+ // ③單別（小至大）
+ const t=String(a.type).localeCompare(String(b.type),"zh-Hant",{numeric:true});
+ if(t)return t;
+
+ // ④單號（小至大）
  const noCmp=String(a.no).localeCompare(String(b.no),"zh-Hant",{numeric:true});
  if(noCmp)return noCmp;
+
+ // ⑤未備料→已備料（未核單→已核單）
  const ar=a.confirm==="Y",br=b.confirm==="Y";
- if(ar!==br)return ar?-1:1;
+ if(ar!==br)return ar?1:-1;
+
  return 0;
 }
 
@@ -212,6 +230,7 @@ function render(){
  if(document.activeElement&&document.activeElement.classList&&document.activeElement.classList.contains("preparerInput"))return;
 
  let q=norm(document.getElementById("search").value).toLowerCase();
+ let cdf=document.getElementById("createDateFilter").value;
  let f=document.getElementById("factory").value;
  let tr=document.getElementById("transfer").value;
  let uf=document.getElementById("urgentFilter").value;
@@ -220,10 +239,14 @@ function render(){
  let pr=document.getElementById("person").value;
  let bo=document.getElementById("borrow").value;
 
+ const today=new Date();today.setHours(0,0,0,0);
+
  let data=rows.filter(r=>{
   const ready=r.confirm==="Y",urgent=!!actions[keyOf(r)]?.urgent,picked=!!actions[keyOf(r)]?.pickedUp;
   const text=norm(`${r.factory}${r.type}${r.no}${r.orderNo}${r.person}`).toLowerCase();
+  const cd=parseDate(r.createDate);cd.setHours(0,0,0,0);
   return (!q||text.includes(q))
+   &&(!cdf||cd.getTime()===today.getTime())
    &&(!f||r.factory===f)
    &&(!tr||(tr==="yes"?r.transfer:!r.transfer))
    &&(!uf||(uf==="yes"?urgent:!urgent))
@@ -250,6 +273,7 @@ function render(){
   <td class="typeno"><div class="t">${esc(r.type)}</div><div class="n ${overdue?'no':''}">${esc(r.no)}</div></td>
   <td>${esc(r.orderNo)||'<span class="disabled">—</span>'}</td>
   <td>${esc(r.person)}</td>
+  <td>${formatDate(r.createDate)}</td>
   <td>${formatDate(r.date)}</td>
   <td class="${r.pages>0?'ok':'ng'}">${r.pages>0?'已提供':'未提供'}</td>
   <td>${r.pages||'<span class="disabled">—</span>'}</td>
@@ -278,39 +302,61 @@ function setPersons(){
 }
 
 // ---- demo dataset (stand-in for the ERP query, until it's wired to a real API) ----
+function toROC(d){return `${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`}
+
+// ---- demo dataset (stand-in for the ERP query, until it's wired to a real API) ----
+// 日期一律以「執行當下」為基準動態產生，確保每次打開看到的都是近期資料，而不是寫死的固定日期。
+// 建立日期（系統建檔日）與單據日期（單據本身的日期）刻意拆開：
+//  - 多數當天建立、當天單據（一般狀況）
+//  - 少數當天建立、單據日期較早（表示這張單早該取，尚未取貨 → 逾期）
+//  - 少數當天建立、單據日期較晚（預先開立作業，等未來日期才需要備料/取貨）
+//  - 少數建立日期非當天（用來示範「建立日期：全部」篩選才會看到的資料）
 function loadDemo(){
  const factories=["A廠","B廠","C廠"];
  const types=["1410","1420","1430"];
  const people=["王XX","李XX","陳XX","林XX","黃XX"];
- const today=new Date();
+ const today=new Date();today.setHours(0,0,0,0);
  const gen=[];
- for(let i=0;i<130;i++){
+ const N=90;
+ for(let i=0;i<N;i++){
   const f=factories[i%factories.length];
   const t=types[(i*3)%types.length];
-  const dayOffset=Math.floor(i/9); // spread across the month, oldest first
-  const d=new Date(today.getFullYear(),today.getMonth(),1+dayOffset%28);
-  const roc=d.getFullYear()-1911;
-  const dateStr=`${roc}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
-  const confirm=Math.random()<0.9?"Y":"N";
+
+  // 建立日期：約7成為當天，其餘落在前1~3天（示範「建立日期：全部」才會顯示的資料）
+  const createOffset=Math.random()<0.7?0:-(1+Math.floor(Math.random()*3));
+  const createDate=new Date(today);createDate.setDate(createDate.getDate()+createOffset);
+
+  // 單據日期：多數與建立日期同天；部分較早（可能逾期未取）；部分較晚（預先開立）
+  const roll=Math.random();
+  let docOffset;
+  if(roll<0.6) docOffset=0;
+  else if(roll<0.85) docOffset=-(1+Math.floor(Math.random()*4));
+  else docOffset=1+Math.floor(Math.random()*2);
+  const docDate=new Date(createDate);docDate.setDate(docDate.getDate()+docOffset);
+
+  const confirm=Math.random()<0.85?"Y":"N";
   const pages=Math.random()<0.85?(1+Math.floor(Math.random()*3)):0;
+
   gen.push({
-   工廠:f,單別:t,領料單號:`115${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}${String(i).padStart(3,"0")}`,
+   工廠:f,單別:t,
+   領料單號:`${createDate.getFullYear()-1911}${String(createDate.getMonth()+1).padStart(2,"0")}${String(createDate.getDate()).padStart(2,"0")}${String(i).padStart(3,"0")}`,
    製令單號:`WO${1200000+i}`,開單人員:people[i%people.length],核單人:people[(i+2)%people.length],
-   單據日期:dateStr,確認碼:confirm,單據頁數:pages,
+   建立日期:toROC(createDate),單據日期:toROC(docDate),
+   確認碼:confirm,單據頁數:pages,
    轉撥:Math.random()<0.53?"Y":"N",借出:Math.random()<0.08?"Y":"N",
    建立時間:`${String(8+Math.floor(Math.random()*4)).padStart(2,"0")}:${String(Math.floor(Math.random()*60)).padStart(2,"0")}:00`,
    修改時間:`${String(12+Math.floor(Math.random()*6)).padStart(2,"0")}:${String(Math.floor(Math.random()*60)).padStart(2,"0")}:00`
   });
  }
  rows=normalizeData(gen);
- // seed a few urgent / picked-up flags so the cards + sorting are visible on load
- rows.slice(0,10).forEach(r=>{actions[keyOf(r)]={...(actions[keyOf(r)]||{}),urgent:true}});
- rows.filter(r=>r.confirm==="Y").slice(0,Math.floor(rows.length*0.85)).forEach(r=>{actions[keyOf(r)]={...(actions[keyOf(r)]||{}),pickedUp:true}});
+ // 預設帶入幾筆急單／已取貨，方便一打開就看得出排序效果
+ rows.slice(0,8).forEach(r=>{actions[keyOf(r)]={...(actions[keyOf(r)]||{}),urgent:true}});
+ rows.filter(r=>r.confirm==="Y").slice(0,Math.floor(rows.length*0.5)).forEach(r=>{actions[keyOf(r)]={...(actions[keyOf(r)]||{}),pickedUp:true}});
  persist();
  setFactories();setPersons();render();
 }
 
-["search","factory","transfer","urgentFilter","status","pickedFilter","person","borrow"]
+["search","createDateFilter","factory","transfer","urgentFilter","status","pickedFilter","person","borrow"]
  .forEach(id=>document.getElementById(id).addEventListener("input",render));
 
 // auto-refresh every 3 seconds — mirrors the "3秒後刷新" pill, and keeps multiple tabs of this board in sync
