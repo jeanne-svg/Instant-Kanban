@@ -113,7 +113,7 @@ tbody tr:hover td{background:#f9fafb}
   <thead><tr>
    <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
    <th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
-   <th title="以「單據日期＝當日」統計（與建立日期無關）：&#10;未備料＝當日未核單且尚未取貨的張數&#10;待出＝當日尚未取貨的張數（含未備料＋已備料未取）">當日單據統計</th>
+   <th title="以「單據日期＝當日」統計（與建立日期無關）：&#10;未備料＝當日未核單且尚未取貨的張數&#10;待取＝當日尚未取貨的張數（含未備料＋已備料未取）">當日單據統計</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
  </table>
@@ -170,7 +170,7 @@ function isOverdue(r){
 }
 // 依「工廠」統計當日（單據日期＝今天，與建立日期無關）：
 //  notReady＝未核單（尚未備料）且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
-//  pending＝未核單＋已核單但尚未取貨的張數合計 → 今天總共還要提供給工廠幾張單據
+//  pending＝未核單＋已核單但尚未取貨的張數合計 → 今天總共還要提供給工廠幾張單據（待取）
 function computeFactoryStats(){
  const today=new Date();today.setHours(0,0,0,0);
  const stats={};
@@ -308,14 +308,20 @@ function render(){
   <td class="${r.confirm==='Y'?'ok':'ng'}">${r.confirm==='Y'?'完成':'未完成'}</td>
   <td>${permission.preparer?`<input class="preparerInput" type="text" placeholder="填寫姓名" value="${esc(preparer)}" onchange="setPreparer('${escAttr(k)}',this.value)">`:esc(preparer)||'<span class="disabled">—</span>'}</td>
   <td>${formatPrepHours(r)}</td>
-  <td>${permission.pickedUp?`<input type="checkbox" ${picked?'checked':''} onchange="toggle('${escAttr(k)}','pickedUp',this.checked)">`:'<span class="disabled">—</span>'}</td>
-  <td class="daystat">未備料 <b class="${fs.notReady>0?'ng':'ok'}">${fs.notReady}</b> ／ 待出 <b>${fs.pending}</b></td>
+  <td>${permission.pickedUp?`<input type="checkbox" ${picked?'checked':''} ${r.confirm==='Y'?'':'disabled title="尚未備料完成，無法勾選工廠取貨"'} onchange="toggle('${escAttr(k)}','pickedUp',this.checked)">`:'<span class="disabled">—</span>'}</td>
+  <td class="daystat">未備料 <b class="${fs.notReady>0?'ng':'ok'}">${fs.notReady}</b> ／ 待取 <b>${fs.pending}</b></td>
   </tr>`;
  }).join("");
 }
 
 function persist(){localStorage.setItem("materialBoardActions",JSON.stringify(actions))}
-function toggle(k,field,v){actions[k]=actions[k]||{};actions[k][field]=v;actions[k][field+"Time"]=new Date().toLocaleString("zh-TW");persist();render()}
+function toggle(k,field,v){
+ if(field==='pickedUp'&&v){
+  const row=rows.find(r=>keyOf(r)===k);
+  if(row&&row.confirm!=="Y"){alert('尚未備料完成，無法勾選工廠取貨');render();return}
+ }
+ actions[k]=actions[k]||{};actions[k][field]=v;actions[k][field+"Time"]=new Date().toLocaleString("zh-TW");persist();render()
+}
 function setPreparer(k,v){actions[k]=actions[k]||{};actions[k].preparer=v.trim();actions[k].preparerTime=new Date().toLocaleString("zh-TW");persist();render()}
 function formatDate(v){let d=parseDate(v);return d.getTime()?`${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`:esc(v)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
@@ -363,8 +369,9 @@ function loadDemo(){
   else docOffset=1+Math.floor(Math.random()*2);
   const docDate=new Date(createDate);docDate.setDate(docDate.getDate()+docOffset);
 
-  const confirm=Math.random()<0.85?"Y":"N";
   const pages=Math.random()<0.85?(1+Math.floor(Math.random()*3)):0;
+  // 業務規則：單據未提供就不可能備料完成
+  const confirm=pages>0?(Math.random()<0.85?"Y":"N"):"N";
 
   gen.push({
    工廠:f,單別:t,
