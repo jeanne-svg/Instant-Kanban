@@ -61,6 +61,10 @@ tbody tr:hover td{background:#f9fafb}
 .hrs{font-variant-numeric:tabular-nums}
 .typeno .t{font-size:11.5px;color:var(--muted)}
 .typeno .n{font-weight:700}
+.daystat{white-space:nowrap;font-size:12.5px;color:#374151}
+.daystat b{font-variant-numeric:tabular-nums}
+.daystat b.ng{color:var(--red)}
+.daystat b.ok{color:var(--green)}
 </style>
 </head>
 <body>
@@ -108,7 +112,8 @@ tbody tr:hover td{background:#f9fafb}
  <table>
   <thead><tr>
    <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
-   <th>單據</th><th>單據頁數</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
+   <th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
+   <th title="以「單據日期＝當日」統計（與建立日期無關）：&#10;未備料＝當日未核單且尚未取貨的張數&#10;待出＝當日尚未取貨的張數（含未備料＋已備料未取）">當日單據統計</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
  </table>
@@ -162,6 +167,22 @@ function isOverdue(r){
  const today=new Date();today.setHours(0,0,0,0);
  const dd=new Date(d);dd.setHours(0,0,0,0);
  return dd.getTime()<today.getTime();
+}
+// 依「工廠」統計當日（單據日期＝今天，與建立日期無關）：
+//  notReady＝未核單（尚未備料）且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
+//  pending＝未核單＋已核單但尚未取貨的張數合計 → 今天總共還要提供給工廠幾張單據
+function computeFactoryStats(){
+ const today=new Date();today.setHours(0,0,0,0);
+ const stats={};
+ rows.forEach(r=>{
+  const dd=parseDate(r.date);dd.setHours(0,0,0,0);
+  if(dd.getTime()!==today.getTime())return;
+  if(!!actions[keyOf(r)]?.pickedUp)return; // 已取貨的不列入「當日待出」統計
+  stats[r.factory]=stats[r.factory]||{notReady:0,pending:0};
+  stats[r.factory].pending++;
+  if(r.confirm!=="Y")stats[r.factory].notReady++;
+ });
+ return stats;
 }
 
 function normalizeData(data){
@@ -263,10 +284,13 @@ function render(){
  document.getElementById("cUrgent").textContent=rows.filter(r=>actions[keyOf(r)]?.urgent).length;
  document.getElementById("cPicked").textContent=rows.filter(r=>actions[keyOf(r)]?.pickedUp).length;
 
+ const factoryStats=computeFactoryStats();
+
  document.getElementById("tbody").innerHTML=data.map(r=>{
   const k=keyOf(r),a=actions[k]||{},urgent=!!a.urgent,picked=!!a.pickedUp,overdue=isOverdue(r);
   const preparer=(a.preparer!==undefined&&a.preparer!==null)?a.preparer:(r.approver||"");
   const rowClass=[picked?'picked-row':'',overdue?'overdue':''].filter(Boolean).join(" ");
+  const fs=factoryStats[r.factory]||{notReady:0,pending:0};
   return `<tr class="${rowClass}">
   <td>${permission.urgent?`<input type="checkbox" ${urgent?'checked':''} onchange="toggle('${escAttr(k)}','urgent',this.checked)">`:'<span class="disabled">—</span>'}</td>
   <td>${esc(r.factory)}</td>
@@ -276,11 +300,11 @@ function render(){
   <td>${formatDate(r.createDate)}</td>
   <td>${formatDate(r.date)}</td>
   <td class="${r.pages>0?'ok':'ng'}">${r.pages>0?'已提供':'未提供'}</td>
-  <td>${r.pages||'<span class="disabled">—</span>'}</td>
   <td class="${r.confirm==='Y'?'ok':'ng'}">${r.confirm==='Y'?'完成':'未完成'}</td>
   <td>${permission.preparer?`<input class="preparerInput" type="text" placeholder="填寫姓名" value="${esc(preparer)}" onchange="setPreparer('${escAttr(k)}',this.value)">`:esc(preparer)||'<span class="disabled">—</span>'}</td>
   <td>${formatPrepHours(r)}</td>
   <td>${permission.pickedUp?`<input type="checkbox" ${picked?'checked':''} onchange="toggle('${escAttr(k)}','pickedUp',this.checked)">`:'<span class="disabled">—</span>'}</td>
+  <td class="daystat">未備料 <b class="${fs.notReady>0?'ng':'ok'}">${fs.notReady}</b> ／ 待出 <b>${fs.pending}</b></td>
   </tr>`;
  }).join("");
 }
