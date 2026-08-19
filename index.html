@@ -113,7 +113,7 @@ tbody tr:hover td{background:#f9fafb}
   <thead><tr>
    <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
    <th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
-   <th title="統計今天建立的這批單據（建立日期＝今天），不論單據日期是過去、今天或預先開立的未來日期：&#10;未備料＝尚未核單、尚未取貨的張數&#10;待取＝尚未取貨的張數合計（未備料＋已備料未取）">當日單據統計</th>
+   <th title="統計目前篩選條件下顯示出來的這批單據（例如預設的「建立日期：當天」）：&#10;未備料＝尚未核單、尚未取貨的張數&#10;待取＝尚未取貨的張數合計（未備料＋已備料未取）">當日單據統計</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
  </table>
@@ -168,15 +168,13 @@ function isOverdue(r){
  const dd=new Date(d);dd.setHours(0,0,0,0);
  return dd.getTime()<today.getTime();
 }
-// 依「工廠」統計今天建立的這批單據（建立日期＝今天，與單據日期無關）：
-//  notReady＝今天建立、尚未核單（未備料）、且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
-//  pending＝今天建立、且尚未取貨的張數合計（不論單據日期是過去、今天或預先開立的未來日期）→ 待取
-function computeFactoryStats(){
- const today=new Date();today.setHours(0,0,0,0);
+// 依「工廠」統計目前畫面上顯示的這批單據（不額外加「建立日期＝今天」的條件——
+// 畫面預設就是用上方的「建立日期：當天」篩選在控制範圍，這裡只單純統計備料／取貨狀況）：
+//  notReady＝尚未核單（未備料）、且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
+//  pending＝尚未取貨的張數合計（未備料＋已備料未取）→ 待取
+function computeFactoryStats(list){
  const stats={};
- rows.forEach(r=>{
-  const cd=parseDate(r.createDate);cd.setHours(0,0,0,0);
-  if(cd.getTime()!==today.getTime())return; // 只統計「建立日期＝今天」這一批
+ list.forEach(r=>{
   if(!!actions[keyOf(r)]?.pickedUp)return; // 已取貨的不列入統計
   stats[r.factory]=stats[r.factory]||{notReady:0,pending:0};
   stats[r.factory].pending++;
@@ -289,7 +287,7 @@ function render(){
  document.getElementById("cUrgent").textContent=rows.filter(r=>actions[keyOf(r)]?.urgent).length;
  document.getElementById("cPicked").textContent=rows.filter(r=>actions[keyOf(r)]?.pickedUp).length;
 
- const factoryStats=computeFactoryStats();
+ const factoryStats=computeFactoryStats(data);
 
  document.getElementById("tbody").innerHTML=data.map(r=>{
   const k=keyOf(r),a=actions[k]||{},urgent=!!a.urgent,picked=!!a.pickedUp,overdue=isOverdue(r);
