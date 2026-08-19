@@ -113,7 +113,7 @@ tbody tr:hover td{background:#f9fafb}
   <thead><tr>
    <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
    <th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
-   <th title="與建立日期無關，只看單據日期：&#10;未備料＝單據日期＝今天，且未核單、尚未取貨的張數&#10;待取＝單據日期≦今天，且尚未取貨的張數合計（含逾期未取＋今天未備料＋今天已備料未取）">當日單據統計</th>
+   <th title="統計今天建立的這批單據（建立日期＝今天），不論單據日期是過去、今天或預先開立的未來日期：&#10;未備料＝尚未核單、尚未取貨的張數&#10;待取＝尚未取貨的張數合計（未備料＋已備料未取）">當日單據統計</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
  </table>
@@ -168,18 +168,19 @@ function isOverdue(r){
  const dd=new Date(d);dd.setHours(0,0,0,0);
  return dd.getTime()<today.getTime();
 }
-// 依「工廠」統計當日待取狀況（與建立日期無關，只看單據日期）：
-//  notReady＝單據日期＝今天　且未核單（尚未備料）且尚未取貨的張數 → 今天到期、需要通知人員備料或通知生管改單據日期
-//  pending＝單據日期≦今天　且尚未取貨的張數合計（含逾期未取＋今天未備料＋今天已備料未取）→ 目前總共還要提供給工廠幾張單據（待取）
+// 依「工廠」統計今天建立的這批單據（建立日期＝今天，與單據日期無關）：
+//  notReady＝今天建立、尚未核單（未備料）、且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
+//  pending＝今天建立、且尚未取貨的張數合計（不論單據日期是過去、今天或預先開立的未來日期）→ 待取
 function computeFactoryStats(){
  const today=new Date();today.setHours(0,0,0,0);
  const stats={};
  rows.forEach(r=>{
+  const cd=parseDate(r.createDate);cd.setHours(0,0,0,0);
+  if(cd.getTime()!==today.getTime())return; // 只統計「建立日期＝今天」這一批
   if(!!actions[keyOf(r)]?.pickedUp)return; // 已取貨的不列入統計
-  const dd=parseDate(r.date);dd.setHours(0,0,0,0);
   stats[r.factory]=stats[r.factory]||{notReady:0,pending:0};
-  if(dd.getTime()<=today.getTime())stats[r.factory].pending++;
-  if(dd.getTime()===today.getTime()&&r.confirm!=="Y")stats[r.factory].notReady++;
+  stats[r.factory].pending++;
+  if(r.confirm!=="Y")stats[r.factory].notReady++;
  });
  return stats;
 }
