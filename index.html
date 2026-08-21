@@ -113,7 +113,7 @@ tbody tr:hover td{background:#f9fafb}
   <thead><tr>
    <th>急單</th><th>工廠</th><th>單別單號</th><th>製令單號</th><th>開單人員</th><th>建立日期</th><th>單據日期</th>
    <th>單據</th><th>備料</th><th>備料人員</th><th>備料時間</th><th>工廠取貨</th>
-   <th title="未備料＝未核單、單據日期≧今天、且尚未取貨的張數&#10;待取＝未備料 ＋ 已備料但單據日期≧今天尚未取貨 ＋ 逾期未取（單據日期＜今天且尚未取貨）">當日單據統計</th>
+   <th title="未備料＝未核單、單據日期≦今天（含逾期）、且尚未取貨的張數&#10;待取＝未備料 ＋ 已核單但尚未取貨的張數（不限單據日期）&#10;※ 此欄不受「建立日期」篩選影響">當日單據統計</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
  </table>
@@ -168,20 +168,23 @@ function isOverdue(r){
  const dd=new Date(d);dd.setHours(0,0,0,0);
  return dd.getTime()<today.getTime();
 }
-// 依「工廠」統計目前篩選條件下顯示出來的這批單據：
-//  未備料＝未核單（尚未備料）、單據日期≧今天、且尚未取貨的張數 → 今天以後到期、需要通知人員備料或通知生管改單據日期
-//  待取＝未備料（同上） ＋ 已備料但單據日期≧今天且尚未取貨 ＋ 逾期未取（單據日期＜今天、不論是否已備料、只要尚未取貨）
-//  逾期未取的單子不併入「未備料」數字（因為性質不同：那些需要的是催工廠來取，不是催備料），但仍計入「待取」總量
+// 依「工廠」統計：
+//  未備料＝未核單（尚未備料）、且單據日期≦今天（今天以前到期，含逾期）、且尚未取貨的張數 → 需要通知人員備料或通知生管改單據日期
+//  待取＝未備料（同上） ＋ 已核單但尚未取貨的張數（不限單據日期，只要備好了還沒被取走就算）
+//  單據日期是未來（預先開立、尚未到期）且還沒核單的，兩邊都不計入——還沒到期，不急。
 function computeFactoryStats(list){
  const today=new Date();today.setHours(0,0,0,0);
  const stats={};
  list.forEach(r=>{
   if(!!actions[keyOf(r)]?.pickedUp)return; // 已取貨的不列入統計
-  const dd=parseDate(r.date);dd.setHours(0,0,0,0);
-  const overdue=dd.getTime()<today.getTime();
   stats[r.factory]=stats[r.factory]||{notReady:0,pending:0};
-  stats[r.factory].pending++; // 未備料(≧今天) ＋ 已備料未取(≧今天) ＋ 逾期未取，三者合計
-  if(!overdue&&r.confirm!=="Y")stats[r.factory].notReady++; // 只有「單據日期≧今天」的未核單才算進未備料
+  const notReady=r.confirm!=="Y";
+  if(notReady){
+   const dd=parseDate(r.date);dd.setHours(0,0,0,0);
+   if(dd.getTime()<=today.getTime()){stats[r.factory].notReady++;stats[r.factory].pending++}
+  }else{
+   stats[r.factory].pending++;
+  }
  });
  return stats;
 }
@@ -268,12 +271,12 @@ function render(){
 
  const today=new Date();today.setHours(0,0,0,0);
 
- let data=rows.filter(r=>{
+ function passesFilters(r,ignoreCreateDate){
   const ready=r.confirm==="Y",urgent=!!actions[keyOf(r)]?.urgent,picked=!!actions[keyOf(r)]?.pickedUp;
   const text=norm(`${r.factory}${r.type}${r.no}${r.orderNo}${r.person}`).toLowerCase();
   const cd=parseDate(r.createDate);cd.setHours(0,0,0,0);
   return (!q||text.includes(q))
-   &&(!cdf||cd.getTime()===today.getTime())
+   &&(ignoreCreateDate||!cdf||cd.getTime()===today.getTime())
    &&(!f||r.factory===f)
    &&(!tr||(tr==="yes"?r.transfer:!r.transfer))
    &&(!uf||(uf==="yes"?urgent:!urgent))
@@ -281,7 +284,11 @@ function render(){
    &&(!pf||(pf==="yes"?picked:!picked))
    &&(!pr||r.person===pr)
    &&(!bo||(bo==="yes"?r.borrow:!r.borrow));
- }).sort(sortRows);
+ }
+
+ let data=rows.filter(r=>passesFilters(r,false)).sort(sortRows);
+ // 統計欄用的資料一律不套用「建立日期」篩選，切換「建立日期：當天／全部」不會讓這欄數字跟著變動
+ let statsBase=rows.filter(r=>passesFilters(r,true));
 
  document.getElementById("cAll").textContent=rows.length;
  document.getElementById("cTransfer").textContent=rows.filter(r=>r.transfer).length;
@@ -290,7 +297,7 @@ function render(){
  document.getElementById("cUrgent").textContent=rows.filter(r=>actions[keyOf(r)]?.urgent).length;
  document.getElementById("cPicked").textContent=rows.filter(r=>actions[keyOf(r)]?.pickedUp).length;
 
- const factoryStats=computeFactoryStats(data);
+ const factoryStats=computeFactoryStats(statsBase);
 
  document.getElementById("tbody").innerHTML=data.map(r=>{
   const k=keyOf(r),a=actions[k]||{},urgent=!!a.urgent,picked=!!a.pickedUp,overdue=isOverdue(r);
